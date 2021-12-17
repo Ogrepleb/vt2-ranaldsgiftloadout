@@ -1,0 +1,11 @@
+mod = [
+	"RanaldsGiftLoadout"
+]
+
+package = [
+	"resource_packages/RanaldsGiftLoadout/RanaldsGiftLoadout"
+]
+
+lua = [
+	"scripts/mods/RanaldsGiftLoadout/*"
+]

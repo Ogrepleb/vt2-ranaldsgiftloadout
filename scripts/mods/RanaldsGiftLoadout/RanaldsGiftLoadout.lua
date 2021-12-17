@@ -44,10 +44,6 @@ CHARM:
 TRINKET:
     see NECKLACE
 
-
-https://www.ranalds.gift/heroes/11/312221/31-1-2-1/63-1-2-1/1-2-1/1-2-1/2-3-1
-https://www.ranalds.gift/heroes/11/312221/31-1-2-1/63-1-2-1/4-2-1/1-2-1/2-3-1
-https://www.ranalds.gift/heroes/11/312221/31-1-2-3/63-1-2-1/4-2-1/1-2-1/2-3-1
 --]]
 
 
@@ -125,6 +121,28 @@ mod.get_hero_and_career = function(self)
 	-- end
 end
 
+-- These should fallback to the template item if nothing can be found?
+
+-- Kind is necklace, trinket or charm
+-- Returns backend item ID
+mod.find_jewellry = function (kind, trait, property1, property2)
+
+end
+
+-- Returns backend item ID
+mod.find_melee_weapon = function (career, trait, property1, property2)
+
+end
+
+-- Returns backend item ID
+mod.find_ranged_weapon = function (career, trait, property1, property2) 
+
+end
+
+-- Returns backend item ID
+mod.equip_talents = function (career, talent_list)
+
+end
 --[[
 
 -- Returns the loadout with the given loadout number, for the given career.

@@ -61,6 +61,15 @@ TRINKET:
 -- mod.equipment_queue = {}
 -- mod.is_loading = false
 
+local function test_data()  
+    return {
+        career = "wh_captain",
+        talents = {1, 2, 3, 3, 3, 3},
+
+
+    }
+end
+
 -- Perform initial setup.
 mod.on_all_mods_loaded = function()
     -- this just loaded and initialised simple UI
@@ -70,6 +79,89 @@ mod:command("foo", "debug", function ()
     mod:get_hero_and_career()
     
 end)
+
+local function list_contains(list, item)
+    for _, i in ipairs(list) do
+        if i == item then 
+            return true
+        end
+    end
+    return false
+end
+
+local function find_template_item(items, item_type)
+    for _, item in pairs(items) do
+        if item.data and item.data.item_type == item_type and item.rarity == 'default' then
+            return item
+        end
+    end
+    mod:error("can't find template for %s", item_type)
+end
+
+local function weapon_is_candidate(item, item_type, trait, prop1, prop2) 
+    if not (item.data and item.data.item_type == item_type ) or item.power_level == nil then
+        return false
+    end
+
+    if trait then
+        if not (item.traits and list_contains(item.traits, trait)) then
+            return false
+        end
+    end
+
+    if prop1 or prop2 then
+        if not item.properties then 
+            return false
+        end
+        if prop1 and item.properties[prop1] == nil then
+            return false
+        end
+        if prop2 and item.properties[prop2] == nil then
+            return false
+        end
+    end
+    
+    return true
+end
+
+-- For two items, returns the better one.  prop1 and prop2 are optional.
+-- If prop1 either or prop2 are non-nil, a AND b must have .properties tables 
+local function best_item(a, b, prop1, prop2)
+    if a.power_level < b.power_level then
+        return b -- base power Trumps all, most of the time this will be 300 anyway
+    end
+
+    local d1 = 0;
+    local d2 = 0;
+
+    if prop1 then
+        local va = a.properties[prop1] or 0
+        local vb = b.properties[prop1] or 0
+        d1 = va - vb
+    end
+
+    if prop1 then
+        local va = a.properties[prop2] or 0
+        local vb = b.properties[prop2] or 0
+        d2 = va - vb
+    end
+
+    if d1 < 0 and d2 < 0 then
+        -- b is better both ways
+        return b
+    elseif d1 > 0 and d2 > 0 then
+        -- a is better both ways
+        return a
+    elseif d1 < 0 and -d1 < d2 then
+        -- b is better for prop1, but a is more better in prop2
+        return a
+    else
+        -- vice versa
+        return b
+    end
+end
+
+
 
 -- Returns the hero name, career name, and career index of the career whose loadouts
 -- should be displayed.
@@ -81,7 +173,7 @@ mod.get_hero_and_career = function(self)
 	
     local current_profile = SPProfiles[profile_index]
 	local career = current_profile.careers[career_index]
-    
+    local career_name = career.name
 
     -- mod:echo(career.name) -- 
     -- mod:echo("%d", career_index)
@@ -101,14 +193,23 @@ mod.get_hero_and_career = function(self)
     local item_ifc = Managers.backend:get_interface("items")
     local items = item_ifc:get_all_backend_items()
     
-    for key, val in pairs(items) do
-        mod:echo("key = %s", key)
-        mod:echo(pprint.pformat(val))
-    end
+    -- for _, item in pairs(items) do
+    --     -- if weapon_is_candidate(item, 'wh_captain', 'wh_brace_of_pistols', 'ranged_replenish_ammo_headshot', 'crit_chance', 'power_vs_large') then
+    --     -- if weapon_is_candidate(item, 'wh_captain', 'wh_brace_of_pistols', nil, 'crit_chance', nil) then
+    --     --     self:echo(pprint.pformat(item))
+    --     -- end
+    --     -- self:echo(item.ItemId, item.key)
+    --     if item.data and item.data.item_type == 'trinket' then
+    --         -- self:echo("key=%s power=%d", item.key or "", item.power_level or 0)
+    --         self:echo(pprint.pformat(item))
+    --     end
+    -- end
 
-    return career.name, career_index
+	local talents_backend = Managers.backend:get_interface("talents")
+	local talents_loadout = table.clone(talents_backend:get_talents(career_name))
 
-
+    self:echo("talents = %s", pprint.pformat(talents_loadout))
+    -- talents_backend:set_talents(career_name)
 	-- local fatshark_view = self.fatshark_view
 	-- if self.is_in_hero_select_popup then
 	-- 	return fatshark_view._selected_hero_name, fatshark_view._selected_career_name, fatshark_view._selected_career_index
@@ -119,6 +220,15 @@ mod.get_hero_and_career = function(self)
 	-- 	local career_name = profile.careers[career_index].name
 	-- 	return fatshark_view.hero_name, career_name, career_index
 	-- end
+
+    talents_backend:set_talents(career_name, {0, 1, 1, 1, 1, 1})
+    local unit = Managers.player:local_player().player_unit
+    if unit and Unit.alive(unit) and is_active_career then
+        ScriptUnit.extension(unit, "talent_system"):talents_changed()
+        ScriptUnit.extension(unit, "inventory_system"):apply_buffs_to_ammo()
+    end
+    
+    return career_name, career_index
 end
 
 -- These should fallback to the template item if nothing can be found?

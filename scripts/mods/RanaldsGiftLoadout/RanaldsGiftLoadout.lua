@@ -1,8 +1,6 @@
 local mod = get_mod("RanaldsGiftLoadout")
-local pformat = dofile("scripts/mods/RanaldsGiftLoadout/pprint").pformat
+
 local parse_url = dofile("scripts/mods/RanaldsGiftLoadout/parse_url")
-local InventorySettings = InventorySettings
-local SPProfiles = SPProfiles
 
 mod.equipment_queue = {}
 mod.is_equipping = false
@@ -47,43 +45,8 @@ mod:command("loadout", " " .. mod:localize('cmd_desc'), function(...)
     mod.set_loadout(loadout)
 end)
 
-mod:command("foo", "debug", function () 
-    local item_ifc = Managers.backend:get_interface("items")
-    local items = item_ifc:get_all_backend_items()
-    -- use key not item_type
-    local map = {}
-    for _, item in pairs(items) do 
-        if item.data then
-            local key = item.data.key
-            local type = item.ItemId
-            if key ~= type then 
-                if map[key] then
-                    if map[key] ~= type then
-                        mod:error("wut: %s %s", key, type)
-                    end
-                else
-                    map[key] = type
-                end
-            end
-        end
-    end
-    print(pformat(map))
-end)
-
-local function list_contains(list, item)
-    for _, i in ipairs(list) do
-        if i == item then 
-            return true
-        end
-    end
-    return false
-end
-
 
 mod.set_loadout = function(loadout) 
-    -- mod:echo(pformat(loadout))
-
-
     local unit = Managers.player:local_player().player_unit
     if not (unit and Unit.alive(unit)) then return end
 

@@ -1,0 +1,20 @@
+Should load full reds on my Zealot
+https://www.ranalds.gift/heroes/12/111111/13-1-4-5/66-3-1-6/3-2-5/1-4-4/1-2-3
+
+Invalid slot (ranged weapon in melee slot)
+https://www.ranalds.gift/heroes/12/111111/66-1-4-5/66-3-1-6/3-2-5/1-4-4/1-2-3
+
+Invalid weapon (Dwarf Hammer on Zealot)
+https://www.ranalds.gift/heroes/12/111111/6-1-4-5/66-3-1-6/3-2-5/1-4-4/1-2-3
+
+Slayer 2H build
+https://www.ranalds.gift/heroes/6/221313/7-4-1-6/44-4-1-6/3-2-1/1-4-4/2-4-3
+
+Slayer 2H build - originally it let you equip the same weapon twice
+https://www.ranalds.gift/heroes/6/221313/44-4-1-6/44-4-1-6/3-2-1/1-4-4/2-4-3
+
+Slayer shitty double pickaxe build - originally equipped two template pickaxes
+https://www.ranalds.gift/heroes/6/221313/9-6-5-3/9-5-6-3/3-2-1/1-4-4/2-4-3
+
+Warrior Priest - originally didn't have reds; testing partial property matching
+https://www.ranalds.gift/heroes/19/231323/81-4-7-6/80-4-1-6/3-2-5/1-4-4/1-7-3

@@ -4,11 +4,6 @@ local parse_url = dofile("scripts/mods/RanaldsGiftLoadout/parse_url")
 local InventorySettings = InventorySettings
 local SPProfiles = SPProfiles
 
--- mod.loadouts_data = nil
--- mod.fatshark_view = nil
--- mod.is_in_hero_select_popup = false
--- mod.loadouts_window = nil
--- mod.loadout_details_window = nil
 mod.equipment_queue = {}
 mod.is_equipping = false
 mod.inventory_open = false
@@ -22,28 +17,30 @@ local SLOT_NAMES = {
     trinket = 'slot_trinket_1'
 }
 
+mod.echo_localized = function(self, ...)
+    mod:echo(mod:localize(...))
+end
 
-mod:command("loadout", " Import a loadout from Ranald's Gift", function(...)
+mod:command("loadout", " " .. mod:localize('cmd_desc'), function(...)
     local nargs = select("#", ...)
     local url = select(1, ...)
     mod:dofile("scripts/mods/RanaldsGiftLoadout/ranalds_gift_lookups")
     if not url or nargs ~= 1 then
-        mod:echo("\\loadout expects one argument")
+        mod:echo_localized('errmsg_bad_args')
         return
     end
     if mod.is_equipping then
-        mod:echo("Busy equipping loadout, try again.")
+        mod:echo_localized('errmsg_busy_equipping')
         return
     end 
 
     local loadout = parse_url(url)
     if not loadout then
-        mod:echo("invalid URL")
+        mod:echo_localized('errmsg_invalid_url')
     end
 
-    mod:echo(mod.active_career())
     if mod.active_career() ~= loadout.career then
-        mod:echo("Switch to the correct career first")
+        mod:echo_localized('errmsg_switch_career', Managers.localizer:simple_lookup(CareerSettings[loadout.career].display_name))
         return
     end
 
@@ -86,32 +83,45 @@ end
 mod.set_loadout = function(loadout) 
     -- mod:echo(pformat(loadout))
 
-    -- Set talents (code based on HeroWindowTalents.on_exit)
-    local talents_backend = Managers.backend:get_interface("talents")
-    talents_backend:set_talents(loadout.career, loadout.talents)
+
     local unit = Managers.player:local_player().player_unit
     if not (unit and Unit.alive(unit)) then return end
-    
-    ScriptUnit.extension(unit, "talent_system"):talents_changed()
-    local inventory_extension = ScriptUnit.extension(unit, "inventory_system")
-    inventory_extension:apply_buffs_to_ammo()
-    
-    if mod.talents_window then
-        mod.talents_window._selected_talents = table.clone(loadout.talents)
-        mod.talents_window:_update_talent_sync()
-    end
 
     local item_ifc = Managers.backend:get_interface("items")
     local items = item_ifc:get_all_backend_items()
 
     local equipment = {}
+
+    equipment.primary = mod.find_item(items, loadout, 'primary')
+    -- For careers like Slayer, make sure we don't equip 2 duplicate items
+    equipment.secondary = mod.find_item(items, loadout, 'secondary', equipment.primary.backend_id)
+    for _, slot in pairs({ 'necklace', 'charm', 'trinket'}) do 
+        equipment[slot] = mod.find_item(items, loadout, slot)
+    end
+
     for slot, slot_name in pairs(SLOT_NAMES) do
-        local item = mod.find_item(items, loadout[slot])
-        if not mod.validate_loadout_item(loadout, item, slot_name) then return end
-        equipment[slot] = item
+        if not mod.validate_loadout_item(loadout, equipment[slot], slot_name) then
+            return
+        end
     end
     
+    
+    -- Set talents (code based on HeroWindowTalents.on_exit)
+    local talents_backend = Managers.backend:get_interface("talents")
+    talents_backend:set_talents(loadout.career, loadout.talents)
+    ScriptUnit.extension(unit, "talent_system"):talents_changed()
+    local inventory_extension = ScriptUnit.extension(unit, "inventory_system")
+    inventory_extension:apply_buffs_to_ammo()
+        
+    -- If the talents window is open, need to update it.  Otherwise, in HeroWindowTalents.on_exit
+    -- the talents stored in  HeroWindowTalents will be applied, overriding the loadout
+    if mod.talents_window then        
+        mod.talents_window._selected_talents = table.clone(loadout.talents)
+        mod.talents_window:_update_talent_sync()
+    end
 
+    -- Set equipment: There are two paths, depending on whether the equipment window
+    -- is open or not
     if mod.inventory_open then
         mod.is_equipping = true
         -- Inventory is open, queue up the items 
@@ -130,13 +140,29 @@ mod.set_loadout = function(loadout)
                 attachment_extension:create_attachment_in_slot(slot_name, item.backend_id)
             end
         end
-        -- TODO: do I need to check if a network sync is happening? Shit hasn't broken yet
+        -- Do I need to check if a network sync is happening?
     end
 end
 
 mod.validate_loadout_item = function (loadout, item, slot_name)
     if not item then return false end 
-    -- TODO: check that the career can equip this item and that the slot is correct too
+
+    -- Check the item is valid for the career 
+    if not (item.data and item.data.can_wield and table.contains(item.data.can_wield, loadout.career)) then
+        mod:echo_localized('errmsg_invalid_loadout', mod:localize('errmsg_invalid_loadout_career'))
+        return false
+    end
+
+    -- Item is in the correct slot for that career
+    local valid_slot_types = CareerSettings[loadout.career].item_slot_types_by_slot_name[slot_name];
+    if not ( item.data and table.contains(valid_slot_types, item.data.slot_type )) then
+        mod:echo_localized('errmsg_invalid_loadout', mod:localize('errmsg_invalid_loadout_slot'))
+        return false
+    end
+
+    -- Don't need to check trait and properties types because the item comes from the backend
+    -- so it must be valid
+
     return true
 end
 
@@ -151,7 +177,6 @@ mod.active_career = function()
         return career.name
     end
 end
-
 
 local function matches_type(item, spec) 
     if spec.type == "necklace" or spec.type == "ring" or spec.type == "trinket" then
@@ -210,6 +235,7 @@ local function best_item(a, b, spec)
     end
 end
 
+-- Fallback for not matching any items, makes it clear that you need to craft something
 local function find_template_item(items, spec)
     for _, item in pairs(items) do
         if matches_type(item, spec) and item.rarity == 'default' then
@@ -219,20 +245,43 @@ local function find_template_item(items, spec)
     mod:error("can't find template for %s", spec.type)
 end
 
--- Kind is necklace, trinket or charm
--- Returns backend item ID
-mod.find_item = function (items, spec)
+-- Fallback for finding a duplicate template item.  For example, if Slayer tries to load a 
+-- build with two-pickaxes and has no matching ones, we would otherwise equip 2 template pickaxes.
+-- We replace the second pickaxe with an arbitrary template item that matches the slot types
+-- and career and is distinct from the pickaxe template (ignore_id)
+local function find_any_template_item(items, career, slot, ignore_id)
+    local slot_types = CareerSettings[career].item_slot_types_by_slot_name[SLOT_NAMES[slot]]
+    for _, item in pairs(items) do
+        if (item.backend_id ~= ignore_id and
+            item.rarity == 'default' and
+            item.data and item.data.can_wield and table.contains(item.data.can_wield, career) and
+            table.contains(slot_types, item.data.slot_type)
+        ) then
+            return item
+        end
+    end
+    mod:error("can't find template for %s, %s", career, slot)
+end
+
+mod.find_item = function (items, loadout, slot, ignore_id)
     local best = nil
+    local spec = loadout[slot]
 
     for _, i in pairs(items) do
-        if item_is_candidate(i, spec) then
+        if i.backend_id ~= ignore_id and item_is_candidate(i, spec) then
             best = best_item(best, i, spec)
         end
     end
     if best then
         return best
     else
-        return find_template_item(items, spec)
+        local item = find_template_item(items, spec)
+        if item.backend_id == ignore_id then
+            return find_any_template_item(items, loadout.career, slot, ignore_id)     
+        else
+            return item
+        end
+
     end
 end
 
@@ -282,9 +331,3 @@ mod:hook_safe(HeroViewStateOverview, "post_update", function(self, dt, t)
         self:unblock_input()
     end
 end)
-
---[[
--- https://www.ranalds.gift/heroes/12/111111/13-1-4-5/66-3-1-6/3-2-5/1-4-4/1-2-3
-
-
---]]
